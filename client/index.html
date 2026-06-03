@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Domination — Lobby</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="lobby-screen">
+    <h1>🌍 WORLD DOMINATION</h1>
+
+    <!-- Name entry -->
+    <div class="card" id="name-card">
+        <h2>Enter your name</h2>
+        <input type="text" id="name-input" placeholder="Your name" maxlength="20">
+        <button class="btn-primary" id="name-btn" onclick="enterLobby()">Enter Lobby</button>
+    </div>
+
+    <!-- Lobby actions -->
+    <div class="card" id="lobby-card" style="display:none">
+        <h2>Your name: <span id="display-name" style="color:#fff"></span></h2>
+        <div style="display:flex;gap:10px;margin-bottom:20px">
+            <button class="btn-success" onclick="createRoom()">Create Room</button>
+        </div>
+        <h2>Available Rooms</h2>
+        <div id="room-list"><p style="color:#666;font-size:0.85rem">No rooms yet — create one!</p></div>
+    </div>
+
+    <!-- Waiting room -->
+    <div class="card" id="waiting-room">
+        <h2>Room: <span id="room-id-display" style="color:#f39c12;font-size:1rem"></span></h2>
+        <p style="color:#888;font-size:0.85rem;margin-bottom:12px">Share this room ID with friends to join</p>
+        <div id="player-chips"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn-primary" id="start-btn" onclick="startGame()" style="display:none">Start Game</button>
+            <button class="btn-secondary btn-sm" onclick="leaveRoom()">Leave Room</button>
+            <span id="status-msg">Waiting for players…</span>
+        </div>
+    </div>
+
+    <p id="conn-status" style="color:#666;font-size:0.8rem">Connecting…</p>
+</div>
+
+<script>
+const SERVER_URL = "REPLACE_SERVER_URL";
+let ws, myId, myRoom, myPlayerIdx, myColor, isHost = false;
+
+function connect() {
+    ws = new WebSocket(SERVER_URL);
+    ws.onopen    = () => { document.getElementById("conn-status").textContent = "Connected"; };
+    ws.onclose   = () => { document.getElementById("conn-status").textContent = "Disconnected — reload to reconnect"; };
+    ws.onerror   = () => { document.getElementById("conn-status").textContent = "Connection error"; };
+    ws.onmessage = e  => handleMsg(JSON.parse(e.data));
+}
+
+function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+function enterLobby() {
+    const name = document.getElementById("name-input").value.trim();
+    if (!name) return;
+    send({ type: "join_lobby", name });
+    document.getElementById("name-card").style.display  = "none";
+    document.getElementById("lobby-card").style.display = "block";
+    document.getElementById("display-name").textContent  = name;
+}
+
+function createRoom() {
+    send({ type: "create_room" });
+}
+
+function joinRoom(roomId) {
+    send({ type: "join_room", room_id: roomId });
+}
+
+function startGame() {
+    send({ type: "start_game" });
+}
+
+function leaveRoom() {
+    location.reload();
+}
+
+function handleMsg(msg) {
+    switch (msg.type) {
+        case "joined_lobby":
+            myId = msg.client_id;
+            break;
+
+        case "lobby_update":
+            renderRooms(msg.rooms);
+            break;
+
+        case "room_created":
+            myRoom      = msg.room_id;
+            myPlayerIdx = msg.player_idx;
+            myColor     = msg.color;
+            isHost      = true;
+            showWaitingRoom(myRoom);
+            break;
+
+        case "room_joined":
+            myRoom      = msg.room_id;
+            myPlayerIdx = msg.player_idx;
+            myColor     = msg.color;
+            isHost      = false;
+            showWaitingRoom(myRoom);
+            break;
+
+        case "player_joined":
+            renderChips(msg.players);
+            break;
+
+        case "error":
+            alert(msg.msg);
+            break;
+
+        case "game_started":
+            sessionStorage.setItem("risk_room",    myRoom);
+            sessionStorage.setItem("risk_idx",     myPlayerIdx);
+            sessionStorage.setItem("risk_color",   myColor);
+            sessionStorage.setItem("risk_players", JSON.stringify(msg.players));
+            sessionStorage.setItem("risk_state",   JSON.stringify(msg.state));
+            window.location.href = "game.html";
+            break;
+    }
+}
+
+function showWaitingRoom(roomId) {
+    document.getElementById("lobby-card").style.display    = "none";
+    document.getElementById("waiting-room").style.display  = "block";
+    document.getElementById("room-id-display").textContent = roomId;
+    if (isHost) document.getElementById("start-btn").style.display = "inline-block";
+}
+
+function renderRooms(rooms) {
+    const el = document.getElementById("room-list");
+    if (!rooms.length) {
+        el.innerHTML = '<p style="color:#666;font-size:0.85rem">No rooms yet — create one!</p>';
+        return;
+    }
+    el.innerHTML = rooms.map(r => `
+        <div class="room-item">
+            <span class="room-host">${r.host}'s room</span>
+            <span class="room-count">${r.players}/6 players</span>
+            <button class="btn-secondary btn-sm" onclick="joinRoom('${r.id}')">Join</button>
+        </div>
+    `).join("");
+}
+
+function renderChips(players) {
+    document.getElementById("player-chips").innerHTML = players.map(p => `
+        <div class="player-chip">
+            <div class="chip-dot" style="background:${p.color}"></div>
+            ${p.name}
+        </div>
+    `).join("");
+    document.getElementById("status-msg").textContent =
+        `${players.length} player${players.length !== 1 ? "s" : ""} in room`;
+}
+
+connect();
+document.getElementById("name-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") enterLobby();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject server URL
+        env:
+          SERVER_URL: ${{ vars.SERVER_URL || 'ws://localhost:8765' }}
+        run: |
+          sed -i "s|REPLACE_SERVER_URL|$SERVER_URL|g" client/index.html
+          sed -i "s|REPLACE_SERVER_URL|$SERVER_URL|g" client/js/game.js
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
