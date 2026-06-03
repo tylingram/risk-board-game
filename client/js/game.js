@@ -17,8 +17,7 @@ let ws;
 function connect() {
     ws = new WebSocket(SERVER_URL);
     ws.onopen    = () => {
-        ws.send(JSON.stringify({ type: "join_lobby", name: players[myIdx]?.name || "Player" }));
-        ws.send(JSON.stringify({ type: "join_room", room_id: myRoom }));
+        ws.send(JSON.stringify({ type: "rejoin_game", room_id: myRoom, player_idx: myIdx }));
     };
     ws.onmessage = e => handleMsg(JSON.parse(e.data));
     ws.onclose   = () => addLog("Disconnected from server.", "system");
@@ -26,7 +25,11 @@ function connect() {
 function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 
 function handleMsg(msg) {
-    if (msg.type === "state_update") {
+    if (msg.type === "game_started") {
+        players = msg.players;
+        state   = msg.state;
+        render();
+    } else if (msg.type === "state_update") {
         state = msg.state;
         logPhaseChange();
         if (msg.attack_result) showAttackResult(msg.attack_result);

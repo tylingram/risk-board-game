@@ -216,6 +216,22 @@ async def handle(cid, data):
         })
         await _broadcast_lobby()
 
+    elif t == "rejoin_game":
+        # Re-associate a fresh socket (new cid after page navigation) with an
+        # existing player slot in a game that's already started.
+        room_id    = data.get("room_id")
+        player_idx = data.get("player_idx")
+        room       = rooms.get(room_id)
+        if not room or room["status"] not in ("playing", "finished"):
+            await _send(cid, {"type": "error", "msg": "Game not found"}); return
+        slot = next((p for p in room["players"] if p["idx"] == player_idx), None)
+        if not slot:
+            await _send(cid, {"type": "error", "msg": "Player slot not found"}); return
+        slot["id"]        = cid
+        client["room_id"] = room_id
+        client["name"]    = slot["name"]
+        await _send(cid, {"type": "game_started", "players": room["players"], "state": room["state"]})
+
     # ── Game actions ───────────────────────────────────────────────────────
     elif t == "place_armies":
         room_id = client["room_id"]
@@ -400,14 +416,19 @@ async def handler(ws):
     finally:
         room_id = clients[cid]["room_id"]
         if room_id and room_id in rooms:
-            room  = rooms[room_id]
-            name  = clients[cid]["name"] or "?"
-            room["players"] = [p for p in room["players"] if p["id"] != cid]
-            await _broadcast_room(room_id, {"type": "player_left", "name": name, "players": room["players"]})
-            if not room["players"]:
-                rooms.pop(room_id, None)
-            elif room["host"] == cid and room["players"]:
-                room["host"] = room["players"][0]["id"]
+            room = rooms[room_id]
+            name = clients[cid]["name"] or "?"
+            if room["status"] == "waiting":
+                # In the lobby, a disconnect truly removes the player.
+                room["players"] = [p for p in room["players"] if p["id"] != cid]
+                await _broadcast_room(room_id, {"type": "player_left", "name": name, "players": room["players"]})
+                if not room["players"]:
+                    rooms.pop(room_id, None)
+                elif room["host"] == cid:
+                    room["host"] = room["players"][0]["id"]
+            else:
+                # Mid-game: keep the slot so a navigating player can rejoin.
+                await _broadcast_room(room_id, {"type": "player_left", "name": name, "players": room["players"]})
         clients.pop(cid, None)
         print(f"[-] {cid} disconnected (total={len(clients)})", flush=True)
         await _broadcast_lobby()
