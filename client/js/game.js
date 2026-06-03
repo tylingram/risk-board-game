@@ -1,4 +1,5 @@
-const SERVER_URL = "REPLACE_SERVER_URL";
+// Accept http(s):// or ws(s):// in the injected value; WebSocket needs ws(s)://
+const SERVER_URL = "REPLACE_SERVER_URL".replace(/^http/, "ws");
 
 // ── Session state ───────────────────────────────────────────────────────────
 const myRoom      = sessionStorage.getItem("risk_room");
