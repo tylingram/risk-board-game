@@ -23,7 +23,6 @@ jobs:
           SERVER_URL: ${{ vars.SERVER_URL || 'ws://localhost:8765' }}
         run: |
           sed -i "s|REPLACE_SERVER_URL|$SERVER_URL|g" client/index.html
-          sed -i "s|REPLACE_SERVER_URL|$SERVER_URL|g" client/js/game.js
 
       - uses: actions/upload-pages-artifact@v3
         with:

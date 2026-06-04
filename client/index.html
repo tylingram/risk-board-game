@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>World Domination — Lobby</title>
+<title>Multiplayer Lobby</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div id="lobby-screen">
-    <h1>🌍 WORLD DOMINATION</h1>
+    <h1>🎮 MULTIPLAYER LOBBY</h1>
 
     <!-- Name entry -->
     <div class="card" id="name-card">
@@ -33,7 +33,6 @@
         <p style="color:#888;font-size:0.85rem;margin-bottom:12px">Share this room ID with friends to join</p>
         <div id="player-chips"></div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <button class="btn-primary" id="start-btn" onclick="startGame()" style="display:none">Start Game</button>
             <button class="btn-secondary btn-sm" onclick="leaveRoom()">Leave Room</button>
             <span id="status-msg">Waiting for players…</span>
         </div>
@@ -45,7 +44,7 @@
 <script>
 // Accept http(s):// or ws(s):// in the injected value; WebSocket needs ws(s)://
 const SERVER_URL = "REPLACE_SERVER_URL".replace(/^http/, "ws");
-let ws, myId, myRoom, myPlayerIdx, myColor, isHost = false;
+let ws, myId, myRoom, myPlayerIdx, myColor;
 
 function connect() {
     ws = new WebSocket(SERVER_URL);
@@ -74,12 +73,11 @@ function joinRoom(roomId) {
     send({ type: "join_room", room_id: roomId });
 }
 
-function startGame() {
-    send({ type: "start_game" });
-}
-
 function leaveRoom() {
-    location.reload();
+    send({ type: "leave_room" });
+    myRoom = null;
+    document.getElementById("waiting-room").style.display = "none";
+    document.getElementById("lobby-card").style.display   = "block";
 }
 
 function handleMsg(msg) {
@@ -96,7 +94,6 @@ function handleMsg(msg) {
             myRoom      = msg.room_id;
             myPlayerIdx = msg.player_idx;
             myColor     = msg.color;
-            isHost      = true;
             showWaitingRoom(myRoom);
             break;
 
@@ -104,25 +101,16 @@ function handleMsg(msg) {
             myRoom      = msg.room_id;
             myPlayerIdx = msg.player_idx;
             myColor     = msg.color;
-            isHost      = false;
             showWaitingRoom(myRoom);
             break;
 
         case "player_joined":
+        case "player_left":
             renderChips(msg.players);
             break;
 
         case "error":
             alert(msg.msg);
-            break;
-
-        case "game_started":
-            sessionStorage.setItem("risk_room",    myRoom);
-            sessionStorage.setItem("risk_idx",     myPlayerIdx);
-            sessionStorage.setItem("risk_color",   myColor);
-            sessionStorage.setItem("risk_players", JSON.stringify(msg.players));
-            sessionStorage.setItem("risk_state",   JSON.stringify(msg.state));
-            window.location.href = "game.html";
             break;
     }
 }
@@ -131,7 +119,6 @@ function showWaitingRoom(roomId) {
     document.getElementById("lobby-card").style.display    = "none";
     document.getElementById("waiting-room").style.display  = "block";
     document.getElementById("room-id-display").textContent = roomId;
-    if (isHost) document.getElementById("start-btn").style.display = "inline-block";
 }
 
 function renderRooms(rooms) {
